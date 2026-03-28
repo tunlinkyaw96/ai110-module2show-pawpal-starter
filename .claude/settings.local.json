@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -c \"import pawpal_system; print\\(''Import OK''\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \":*)"
+    ]
+  }
+}

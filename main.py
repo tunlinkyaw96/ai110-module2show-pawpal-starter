@@ -7,8 +7,8 @@ Usage:
 """
 
 from pawpal_system import (
-    Owner, Pet, Task, Scheduler,
-    TaskCategory, Priority, RecurrencePattern,
+    Owner, Pet, Task, Scheduler, ScheduledTask,
+    TaskCategory, Priority, RecurrencePattern, TaskStatus,
 )
 from datetime import date
 
@@ -223,5 +223,90 @@ print(f"  After reset()        : {med_task.title} -> status = {med_task.status.n
 
 # to_dict round-trip
 print("\n  mochi_plan.to_dict() keys:", list(mochi_plan.to_dict().keys()))
+
+# ── 9. Sort Scheduled Tasks by Time ──────────────────────────────────────────
+
+section("9. Sort Scheduled Tasks by Time")
+
+# Build a deliberately out-of-order list so the sort result is visible
+shuffled = [
+    ScheduledTask(task=mochi.tasks[2], start_time="14:30", end_time="14:40", reasoning="demo"),
+    ScheduledTask(task=mochi.tasks[0], start_time="07:00", end_time="07:05", reasoning="demo"),
+    ScheduledTask(task=mochi.tasks[1], start_time="09:15", end_time="09:45", reasoning="demo"),
+    ScheduledTask(task=mochi.tasks[3], start_time="11:00", end_time="11:20", reasoning="demo"),
+]
+
+print("  Before sort_by_time():")
+for st in shuffled:
+    print(f"    {st.start_time}  {st.task.title}")
+
+sorted_by_time = mochi_scheduler.sort_by_time(shuffled)
+print("\n  After sort_by_time():")
+for st in sorted_by_time:
+    print(f"    {st.start_time}  {st.task.title}")
+
+
+# ── 10. Filter Tasks by Status and by Pet ─────────────────────────────────────
+
+section("10. Filter Tasks by Status and Pet Name")
+
+# Mark two tasks so we have a mix of statuses to filter
+mochi.tasks[0].mark_complete()
+luna.tasks[1].mark_complete()
+print(f"  Marked '{mochi.tasks[0].title}' COMPLETED")
+print(f"  Marked '{luna.tasks[1].title}' COMPLETED")
+
+all_tasks = jordan.get_all_tasks()
+completed_tasks = mochi_scheduler.filter_by_status(all_tasks, TaskStatus.COMPLETED)
+pending_tasks   = mochi_scheduler.filter_by_status(all_tasks, TaskStatus.PENDING)
+print(f"\n  Total tasks : {len(all_tasks)}")
+print(f"  COMPLETED   : {len(completed_tasks)} — {[t.title for t in completed_tasks]}")
+print(f"  PENDING     : {len(pending_tasks)}")
+
+luna_only = mochi_scheduler.filter_by_pet("Luna")
+print(f"\n  filter_by_pet('Luna') -> {len(luna_only)} task(s):")
+for t in luna_only:
+    print(f"    {t.title}")
+
+# Restore statuses so later sections are unaffected
+mochi.tasks[0].reset()
+luna.tasks[1].reset()
+
+
+# ── 11. Recurring Task: Auto-create Next Occurrence ───────────────────────────
+
+section("11. Recurring Task — Auto-create Next Occurrence")
+
+walk_task = mochi.get_tasks_by_category(TaskCategory.WALK)[0]
+tasks_before = len(mochi.tasks)
+print(f"  Task      : '{walk_task.title}'  recurrence={walk_task.recurrence.name}")
+print(f"  Mochi tasks before: {tasks_before}")
+
+next_task = mochi.mark_task_complete(walk_task, today)
+print(f"  Marked complete  -> status={walk_task.status.name}")
+if next_task:
+    print(f"  New occurrence   -> '{next_task.title}'  due_date={next_task.due_date}  status={next_task.status.name}")
+print(f"  Mochi tasks after : {len(mochi.tasks)}")
+
+
+# ── 12. Conflict Detection with Warnings ──────────────────────────────────────
+
+section("12. Conflict Detection — Overlapping Tasks")
+
+# Manually schedule two tasks at the exact same time to trigger a conflict
+conflict_demo = [
+    ScheduledTask(task=luna.tasks[0], start_time="08:00", end_time="08:05", reasoning="demo"),
+    ScheduledTask(task=luna.tasks[1], start_time="08:00", end_time="08:05", reasoning="demo"),  # same slot!
+    ScheduledTask(task=luna.tasks[2], start_time="09:00", end_time="09:15", reasoning="demo"),
+]
+
+warnings = luna_scheduler.get_conflict_warnings(conflict_demo)
+print(f"  Conflicts found: {len(warnings)}")
+for w in warnings:
+    print(w)
+
+if not warnings:
+    print("  No conflicts detected.")
+
 
 section("Done - all checks passed")

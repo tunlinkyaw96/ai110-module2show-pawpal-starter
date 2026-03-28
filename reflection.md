@@ -23,8 +23,9 @@
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+The conflict-detection algorithm checks only for **exact time-slot overlap** between two tasks — it flags a conflict when one task's window intersects another's (start A < end B and start B < end A). It does **not** reason about task durations in a continuous timeline; a 5-minute medication at 08:00 and a 30-minute walk that starts at 08:04 would be caught, but two tasks scheduled back-to-back with no travel or prep time between them would silently pass even though they may be practically impossible.
+
+This is a reasonable tradeoff for the current scenario because the scheduler assigns tasks sequentially without gaps, so back-to-back is the intended normal state. Detecting exact overlaps catches the most dangerous bugs (tasks accidentally placed at the same clock time), while avoiding false positives that would overwhelm an owner with warnings for a legitimately dense schedule. A more sophisticated implementation could track transition time between tasks (e.g., travel to the dog park), but that requires additional data the model does not currently collect.
 
 ---
 

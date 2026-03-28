@@ -62,6 +62,7 @@ class Task:
     notes: str = ""
     preferred_time_of_day: str = ""   # e.g. "morning", "evening"
     is_time_sensitive: bool = False
+    due_date: Optional[str] = None            # "YYYY-MM-DD"; set automatically on recurrence
     status: TaskStatus = field(default=TaskStatus.PENDING, init=False)
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8], init=False)
 
@@ -82,6 +83,41 @@ class Task:
     def reset(self) -> None:
         """Reset status back to PENDING."""
         self.status = TaskStatus.PENDING
+
+    def next_occurrence(self, from_date: str) -> Optional["Task"]:
+        """Return a fresh Task copy due on the next scheduled date, or None if non-recurring.
+
+        Args:
+            from_date: The completion date in 'YYYY-MM-DD' format used as the
+                       reference point for calculating the next due date.
+
+        Returns:
+            A new Task with a reset status/id and an updated due_date, or None
+            if this task's recurrence is ONCE or CUSTOM.
+        """
+        if self.recurrence == RecurrencePattern.DAILY:
+            delta = timedelta(days=1)
+        elif self.recurrence == RecurrencePattern.WEEKLY:
+            delta = timedelta(weeks=1)
+        else:
+            return None
+
+        try:
+            next_date = datetime.strptime(from_date, "%Y-%m-%d").date() + delta
+        except ValueError:
+            return None
+
+        return Task(
+            title=self.title,
+            category=self.category,
+            duration_minutes=self.duration_minutes,
+            priority=self.priority,
+            recurrence=self.recurrence,
+            notes=self.notes,
+            preferred_time_of_day=self.preferred_time_of_day,
+            is_time_sensitive=self.is_time_sensitive,
+            due_date=next_date.isoformat(),
+        )
 
     def __repr__(self) -> str:
         return (
@@ -124,6 +160,22 @@ class Pet:
     def get_tasks_by_category(self, category: TaskCategory) -> List[Task]:
         """Return all tasks matching the given category."""
         return [t for t in self.tasks if t.category == category]
+
+    def mark_task_complete(self, task: Task, today: str) -> Optional[Task]:
+        """Mark a task complete and, if recurring, auto-add its next occurrence.
+
+        Args:
+            task:  The Task instance belonging to this pet to mark complete.
+            today: Today's date as 'YYYY-MM-DD', used to compute the next due date.
+
+        Returns:
+            The newly created follow-up Task if one was added, otherwise None.
+        """
+        task.mark_complete()
+        next_task = task.next_occurrence(today)
+        if next_task is not None:
+            self.add_task(next_task)
+        return next_task
 
     def get_total_duration(self) -> int:
         """Return the sum of all task durations in minutes."""
@@ -362,6 +414,70 @@ class Scheduler:
                 if a_start < b_end and b_start < a_end:
                     conflicts.append((a, b))
         return conflicts
+
+    def sort_by_time(self, scheduled_tasks: List[ScheduledTask]) -> List[ScheduledTask]:
+        """Return a new list of ScheduledTasks sorted by start_time ascending.
+
+        Uses a lambda on the 'HH:MM' string directly — zero-padded 24-hour
+        strings compare correctly in lexicographic order, so no parsing needed.
+
+        Args:
+            scheduled_tasks: Any list of ScheduledTask objects.
+
+        Returns:
+            A new list sorted earliest-to-latest by start_time.
+        """
+        return sorted(scheduled_tasks, key=lambda st: st.start_time)
+
+    def filter_by_status(self, tasks: List[Task], status: TaskStatus) -> List[Task]:
+        """Return only the tasks whose status matches the given TaskStatus.
+
+        Args:
+            tasks:  A flat list of Task objects to filter.
+            status: The TaskStatus value to match (e.g. TaskStatus.COMPLETED).
+
+        Returns:
+            A filtered list containing only tasks with the requested status.
+        """
+        return [t for t in tasks if t.status == status]
+
+    def filter_by_pet(self, pet_name: str) -> List[Task]:
+        """Return all tasks belonging to the pet with the given name.
+
+        The lookup is case-insensitive.  Searches across every pet registered
+        with this Scheduler's owner.
+
+        Args:
+            pet_name: The pet's name (case-insensitive).
+
+        Returns:
+            The matching pet's task list, or an empty list if no pet matches.
+        """
+        for pet in self.owner.pets:
+            if pet.name.lower() == pet_name.lower():
+                return list(pet.tasks)
+        return []
+
+    def get_conflict_warnings(self, scheduled: List[ScheduledTask]) -> List[str]:
+        """Return human-readable warning strings for every overlapping task pair.
+
+        Wraps detect_conflicts() and formats each conflicting pair as a plain
+        warning message instead of raising an exception — the caller can simply
+        print or log the results.
+
+        Args:
+            scheduled: The list of ScheduledTask objects to inspect.
+
+        Returns:
+            A list of warning strings (empty if no conflicts exist).
+        """
+        warnings: List[str] = []
+        for a, b in self.detect_conflicts(scheduled):
+            warnings.append(
+                f"  WARNING: '{a.task.title}' ({a.start_time}–{a.end_time}) "
+                f"conflicts with '{b.task.title}' ({b.start_time}–{b.end_time})"
+            )
+        return warnings
 
     def fits_in_window(self, task: Task, used_minutes: int) -> bool:
         """Return True if adding this task keeps total time within the owner's daily budget."""

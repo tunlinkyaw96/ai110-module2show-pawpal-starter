@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_pawpal.py -v)",
+      "Bash(.venv/Scripts/python.exe -c \"import ast, sys; ast.parse\\(open\\(''app.py''\\).read\\(\\)\\); print\\(''app.py syntax OK''\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"import ast; ast.parse\\(open\\(''app.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''app.py syntax OK''\\)\")",
+      "Bash(python main.py)",
+      "Bash(python -m pytest tests/test_pawpal.py -v)"
+    ]
+  }
+}
