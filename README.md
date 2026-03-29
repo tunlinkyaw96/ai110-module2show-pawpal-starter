@@ -1,80 +1,80 @@
-# PawPal+ (Module 2 Project)
+# PawPal+ — Smart Pet Care Planner
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
-
-## Scenario
-
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
-
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
-
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
-
-## What you will build
-
-Your final app should:
-
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
-
-## Smarter Scheduling
-
-Phase 4 added an algorithmic layer on top of the core scheduling engine:
-
-| Feature | How it works |
-|---|---|
-| **Sort by time** | `Scheduler.sort_by_time()` orders any list of `ScheduledTask` objects by their `start_time` string. Zero-padded HH:MM strings compare correctly in lexicographic order, so no parsing overhead is needed. |
-| **Filter by status / pet** | `Scheduler.filter_by_status()` narrows a flat task list to a single `TaskStatus` (e.g. COMPLETED vs PENDING). `Scheduler.filter_by_pet()` returns all tasks for a named pet from the owner's roster, enabling cross-pet queries. |
-| **Recurring task auto-scheduling** | `Task.next_occurrence(from_date)` returns a fresh `Task` copy due the next day (DAILY) or next week (WEEKLY), with a reset status and new id. `Pet.mark_task_complete(task, today)` marks the task done and automatically appends the follow-up occurrence so the pet's task list always stays current. |
-| **Conflict detection** | `Scheduler.detect_conflicts()` finds every `(a, b)` pair of `ScheduledTask` objects whose time windows overlap. `Scheduler.get_conflict_warnings()` wraps that result as human-readable warning strings so the caller can print or log them without crashing. |
-
-## Testing PawPal+
-
-### Running the tests
-
-```bash
-python -m pytest tests/test_pawpal.py -v
-```
-
-### What the tests cover
-
-| Test class | Behaviors verified |
-|---|---|
-| `TestTaskCompletion` | `mark_complete()`, `mark_skipped()`, and `reset()` each flip `TaskStatus` correctly |
-| `TestTaskAddition` | `Pet.add_task()` appends tasks and they're retrievable; multiple adds work correctly |
-| `TestSortingCorrectness` | `sort_tasks_by_priority()` returns tasks CRITICAL → HIGH → LOW; time-sensitive tasks outrank equal-priority non-sensitive tasks; `sort_by_time()` returns `ScheduledTask` objects in chronological order; both methods handle empty lists safely |
-| `TestRecurrenceLogic` | DAILY tasks spawn a next-day follow-up; WEEKLY tasks spawn a next-week follow-up; ONCE tasks return `None`; `Pet.mark_task_complete()` auto-appends the follow-up; follow-ups get a fresh `id` and `PENDING` status |
-| `TestConflictDetection` | Overlapping time windows are detected; back-to-back (non-overlapping) tasks are not flagged; `get_conflict_warnings()` returns human-readable strings; a single-task schedule never conflicts; the Scheduler's own slot assignment produces no internal conflicts |
-
-### Confidence Level
-
-**4 / 5 stars**
-
-The core scheduling logic — priority sorting, recurrence, and conflict detection — is thoroughly covered by 22 automated tests, all of which pass. One star is withheld because the WEEKLY recurrence filter uses a hardcoded Mon/Wed/Fri heuristic rather than a stored start-date, and the Streamlit UI layer has no automated tests yet.
+**PawPal+** is a Streamlit app that helps a busy pet owner build a daily care schedule for their pets. It combines a clean UI with a real scheduling engine: tasks are ranked by priority, slotted into a time budget, and any conflicts or overruns are surfaced as clear warnings.
 
 ---
 
-## Getting started
+## Features
+
+| Feature | How it works |
+|---|---|
+| **Owner & pet profiles** | Create an owner with a daily time budget (minutes/day) and add multiple pets. All state persists in the browser session. |
+| **Task builder** | Add tasks with title, category (walk, feeding, medication, grooming, enrichment, appointment, vet checkup), priority (LOW → CRITICAL), duration, recurrence, preferred time of day, and a time-sensitivity flag. |
+| **Priority-based sorting** | `Scheduler.sort_tasks_by_priority()` ranks tasks by `priority_score()` — CRITICAL first, then HIGH, MEDIUM, LOW. Time-sensitive tasks get a +1 bonus so they beat same-priority peers. |
+| **Daily schedule generation** | `Scheduler.generate_daily_plan()` filters tasks by recurrence, sorts by priority, and slots them sequentially from your chosen start time. Tasks that exceed the daily budget are skipped with an explanation. |
+| **Chronological display** | `Scheduler.sort_by_time()` re-orders the generated plan earliest-to-latest so the owner reads it like a real calendar. |
+| **Budget overrun warning** | Before generating, the app checks if total task time exceeds the daily budget and warns which tasks will be dropped. |
+| **Conflict detection** | `Scheduler.detect_conflicts()` finds every pair of scheduled tasks whose time windows overlap. `get_conflict_warnings()` formats the results as plain-English warnings shown at the top of the plan. |
+| **Skipped task explanation** | Tasks that don't fit are listed below the plan with the reason (`could not fit within daily time budget`). |
+| **Scheduling reasoning** | Each scheduled task shows a plain-English explanation: why that priority, whether the preferred time was matched, and category-specific notes (e.g. "medications must stay on schedule"). |
+| **Recurring task support** | `Task.next_occurrence()` generates a fresh task copy due the next day (DAILY) or next week (WEEKLY). `Pet.mark_task_complete()` marks a task done and auto-appends the follow-up so the pet's list stays current. |
+| **Mark tasks complete** | In the Tasks tab, any pending task can be marked completed from a dropdown. |
+| **Multi-pet support** | An owner can have multiple pets; each pet has its own task list and the scheduler targets one pet per run. |
+
+---
+
+## 📸 Demo
+
+<a href="/course_images/ai110/pawpal_screenshot.png" target="_blank"><img src='/course_images/ai110/pawpal_screenshot.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
+---
+
+## Project Structure
+
+```
+pawpal_system.py   # All domain classes: Owner, Pet, Task, Scheduler, DailyPlan
+app.py             # Streamlit UI — connects directly to backend
+tests/
+  test_pawpal.py   # 22 automated tests covering scheduling behaviors
+uml_final.md       # Final class + sequence diagrams (Mermaid.js)
+uml_design.md      # Original design-phase diagram
+reflection.md      # Design choices, tradeoffs, and AI collaboration notes
+```
+
+---
+
+## Getting Started
 
 ### Setup
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Suggested workflow
+### Run the app
 
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
+```bash
+streamlit run app.py
+```
+
+### Run the tests
+
+```bash
+python -m pytest tests/test_pawpal.py -v
+```
+
+---
+
+## Testing Coverage
+
+| Test class | Behaviors verified |
+|---|---|
+| `TestTaskCompletion` | `mark_complete()`, `mark_skipped()`, `reset()` flip `TaskStatus` correctly |
+| `TestTaskAddition` | `Pet.add_task()` appends tasks; multiple adds work correctly |
+| `TestSortingCorrectness` | Priority sort returns CRITICAL → HIGH → LOW; time-sensitive tasks outrank equal-priority peers; `sort_by_time()` returns chronological order; both handle empty lists |
+| `TestRecurrenceLogic` | DAILY spawns next-day task; WEEKLY spawns next-week task; ONCE returns `None`; `mark_task_complete()` auto-appends follow-up; follow-ups get fresh `id` and `PENDING` status |
+| `TestConflictDetection` | Overlapping windows detected; back-to-back tasks not flagged; `get_conflict_warnings()` returns readable strings; single-task schedule never conflicts; scheduler's own slot assignment produces no internal conflicts |
+
+**Confidence: 4 / 5** — core scheduling logic is thoroughly covered (22 passing tests). One star withheld because the WEEKLY recurrence filter uses a hardcoded Mon/Wed/Fri heuristic and the Streamlit UI has no automated tests.

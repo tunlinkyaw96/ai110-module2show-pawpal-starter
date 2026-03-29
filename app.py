@@ -169,7 +169,7 @@ with tab_tasks:
             )
             task_preferred_select = st.selectbox(
                 "Preferred time of day",
-                options=["", "morning", "afternoon", "evening", "Custom..."],
+                options=["morning", "afternoon", "evening", "Custom"],
             )
             task_preferred_custom = st.text_input(
                 "Custom time of day",
@@ -290,6 +290,16 @@ with tab_schedule:
         st.warning(f"{sched_pet.name} has no tasks yet. Add tasks in the Tasks tab first.")
         st.stop()
 
+    # ── Budget pre-check ──────────────────────────────────────────────────────
+    total_task_min = sched_pet.get_total_duration()
+    budget_min     = owner.available_minutes_per_day
+    if total_task_min > budget_min:
+        st.warning(
+            f"**Heads-up:** {sched_pet.name}'s tasks total **{total_task_min} min** "
+            f"but your daily budget is only **{budget_min} min**. "
+            f"Lower-priority tasks will be skipped to fit the day."
+        )
+
     if st.button("Generate Schedule", type="primary"):
 
         # ── Step 3: wire UI action to Scheduler method ────────────────────────
@@ -312,12 +322,21 @@ with tab_schedule:
         m3.metric("Minutes used",     plan.total_scheduled_minutes)
         m4.metric("Utilization",      f"{plan.get_utilization_pct()}%")
 
+        # ── Conflict warnings (human-readable strings via get_conflict_warnings)
+        conflict_warnings = scheduler.get_conflict_warnings(plan.scheduled_tasks)
+        if conflict_warnings:
+            st.divider()
+            st.error(f"**{len(conflict_warnings)} scheduling conflict(s) detected — review your tasks:**")
+            for msg in conflict_warnings:
+                st.warning(msg.strip())
+
         st.divider()
 
-        # Scheduled tasks table
+        # Scheduled tasks table — sorted chronologically via sort_by_time()
         if plan.scheduled_tasks:
             st.subheader("Today's Plan")
-            for st_task in plan.scheduled_tasks:
+            time_sorted = scheduler.sort_by_time(plan.scheduled_tasks)
+            for st_task in time_sorted:
                 with st.container(border=True):
                     left, right = st.columns([3, 1])
                     with left:
@@ -349,10 +368,3 @@ with tab_schedule:
                     f"{t.notes or 'exceeded daily time budget'}"
                 )
 
-        # Conflict report
-        conflicts = scheduler.detect_conflicts(plan.scheduled_tasks)
-        if conflicts:
-            st.divider()
-            st.error(f"{len(conflicts)} scheduling conflict(s) detected:")
-            for a, b in conflicts:
-                st.write(f"- {a.task.title} overlaps with {b.task.title}")
