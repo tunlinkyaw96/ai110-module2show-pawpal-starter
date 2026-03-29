@@ -344,11 +344,13 @@ class Scheduler:
         owner: Owner,
         pet: Pet,
         day_start_hour: int = 7,
+        day_start_minute: int = 0,
         day_end_hour: int = 21,
     ) -> None:
         self.owner = owner
         self.pet = pet
         self.day_start_hour = day_start_hour
+        self.day_start_minute = day_start_minute
         self.day_end_hour = day_end_hour
 
     # ── helpers ───────────────────────────────────────────────────────────────
@@ -359,8 +361,8 @@ class Scheduler:
         return f"{h:02d}:{m:02d}"
 
     def _day_capacity(self) -> int:
-        """Total schedulable minutes between day_start_hour and day_end_hour."""
-        return (self.day_end_hour - self.day_start_hour) * 60
+        """Total schedulable minutes between day start time and day_end_hour."""
+        return self.day_end_hour * 60 - (self.day_start_hour * 60 + self.day_start_minute)
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -534,7 +536,7 @@ class Scheduler:
         skipped:   List[Task]          = []
 
         # Cursor in minutes from midnight
-        cursor = self.day_start_hour * 60
+        cursor = self.day_start_hour * 60 + self.day_start_minute
         used   = 0
 
         for task in sorted_tasks:

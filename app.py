@@ -5,7 +5,7 @@ Connects directly to the backend classes in pawpal_system.py.
 
 # ── Step 1: Import backend classes ────────────────────────────────────────────
 import streamlit as st
-from datetime import date
+from datetime import date, time as dtime
 
 from pawpal_system import (
     Owner, Pet, Task, Scheduler,
@@ -167,9 +167,14 @@ with tab_tasks:
                 options=[r.value for r in RecurrencePattern],
                 index=1,   # default: daily
             )
-            task_preferred = st.selectbox(
+            task_preferred_select = st.selectbox(
                 "Preferred time of day",
-                options=["", "morning", "afternoon", "evening"],
+                options=["", "morning", "afternoon", "evening", "Custom..."],
+            )
+            task_preferred_custom = st.text_input(
+                "Custom time of day",
+                placeholder="e.g. 8:00 AM, after lunch",
+                help="Used when 'Custom...' is selected above.",
             )
 
         col3, col4 = st.columns(2)
@@ -187,7 +192,7 @@ with tab_tasks:
             duration_minutes=int(task_duration),
             priority=Priority[task_priority],            # name → enum
             recurrence=RecurrencePattern(task_recurrence),
-            preferred_time_of_day=task_preferred,
+            preferred_time_of_day=task_preferred_custom if task_preferred_select == "Custom..." else task_preferred_select,
             is_time_sensitive=task_sensitive,
             notes=task_notes,
         )
@@ -212,10 +217,28 @@ with tab_tasks:
                 "Duration": f"{t.duration_minutes} min",
                 "Recurrence": t.recurrence.value,
                 "Time-sensitive": "yes" if t.is_time_sensitive else "no",
+                "Status": t.status.value,
             }
             for t in sorted_tasks
         ]
         st.dataframe(rows, use_container_width=True)
+
+        # Mark a task as completed
+        with st.expander("Mark a task as completed"):
+            incomplete_tasks = [t for t in selected_pet.tasks if t.status.value != "completed"]
+            if not incomplete_tasks:
+                st.info("All tasks are already marked as completed.")
+            else:
+                task_to_complete = st.selectbox(
+                    "Select task to mark complete",
+                    options=[t.title for t in incomplete_tasks],
+                    key="complete_task_select",
+                )
+                if st.button("Mark as Completed"):
+                    task_obj = next(t for t in selected_pet.tasks if t.title == task_to_complete)
+                    task_obj.mark_complete()
+                    st.success(f"'{task_to_complete}' marked as completed.")
+                    st.rerun()
 
         st.caption(
             f"Total task time: **{selected_pet.get_total_duration()} min** "
@@ -257,8 +280,9 @@ with tab_schedule:
     with col_s2:
         plan_date = st.date_input("Date", value=date.today())
     with col_s3:
-        start_hour = st.number_input("Day starts (hour)", min_value=4, max_value=12,
-                                     value=7, step=1)
+        start_time = st.time_input("Day starts at", value=dtime(7, 0), key="sched_start_time")
+
+    st.caption(f"Schedule will start at **{start_time.strftime('%H:%M')}**")
 
     sched_pet: Pet = next(p for p in owner.pets if p.name == sched_pet_name)
 
@@ -272,7 +296,8 @@ with tab_schedule:
         scheduler = Scheduler(
             owner=owner,
             pet=sched_pet,
-            day_start_hour=start_hour,
+            day_start_hour=start_time.hour,
+            day_start_minute=start_time.minute,
             day_end_hour=22,
         )
         plan = scheduler.generate_daily_plan(plan_date.isoformat())
